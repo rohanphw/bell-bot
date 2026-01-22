@@ -5,9 +5,11 @@ export const env = {
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY!,
   DATA_DIR: process.env.DATA_DIR || "./data",
   TIMEZONE: process.env.TIMEZONE || "UTC",
+  ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || "changeme",
+  PORT: parseInt(process.env.PORT || "3000", 10),
 } as const;
 
-const requiredVars = ["BOT_TOKEN", "ANTHROPIC_API_KEY"] as const;
+const requiredVars = ["BOT_TOKEN", "ANTHROPIC_API_KEY", "ADMIN_PASSWORD"] as const;
 
 for (const key of requiredVars) {
   if (!process.env[key]) {
