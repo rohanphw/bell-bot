@@ -10,9 +10,18 @@ if (!fs.existsSync(env.DATA_DIR)) {
 
 const dbPath = path.join(env.DATA_DIR, "bellbot.db");
 
+console.log(`Database path: ${dbPath}`);
+console.log(`Database exists: ${fs.existsSync(dbPath)}`);
+
 export const db = new Database(dbPath);
 
 export function initializeDb(): void {
+  // Log existing tables
+  const tables = db
+    .prepare("SELECT name FROM sqlite_master WHERE type='table'")
+    .all();
+  console.log("Existing tables:", tables);
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS messages (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -28,7 +37,7 @@ export function initializeDb(): void {
       type TEXT NOT NULL CHECK (type IN ('daily', 'weekly')),
       content TEXT NOT NULL,
       period_start DATETIME NOT NULL,
-      period_end DATETIME NOT NULL,
+      period_end DATETIME NOT NULL,w
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -52,4 +61,9 @@ export function initializeDb(): void {
     CREATE INDEX IF NOT EXISTS idx_summaries_chat_id ON summaries(chat_id);
     CREATE INDEX IF NOT EXISTS idx_followups_trigger ON pending_followups(trigger_at, completed);
   `);
+
+  const messageCount = db
+    .prepare("SELECT COUNT(*) as count FROM messages")
+    .get() as { count: number };
+  console.log(`Total messages in database: ${messageCount.count}`);
 }
