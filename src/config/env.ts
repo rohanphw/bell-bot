@@ -4,6 +4,7 @@ export const env = {
   BOT_TOKEN: process.env.BOT_TOKEN!,
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY!,
   DATA_DIR: process.env.DATA_DIR || "./data",
+  TIMEZONE: process.env.TIMEZONE || "UTC",
 } as const;
 
 const requiredVars = ["BOT_TOKEN", "ANTHROPIC_API_KEY"] as const;
