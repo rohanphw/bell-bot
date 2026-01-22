@@ -1,138 +1,163 @@
-import { db } from "./schema";
-import type { Message, Summary, UserProfile, PendingFollowup } from "../types";
+import { Message, Summary, UserProfile, PendingFollowup } from "./schema";
+import type {
+  Message as MessageType,
+  Summary as SummaryType,
+  UserProfile as UserProfileType,
+  PendingFollowup as PendingFollowupType,
+} from "../types";
 
 // Messages
-export function saveMessage(
+export async function saveMessage(
   chatId: number,
   role: "user" | "assistant",
   content: string,
-): void {
-  db.prepare(
-    "INSERT INTO messages (chat_id, role, content) VALUES (?, ?, ?)",
-  ).run(chatId, role, content);
+): Promise<void> {
+  await Message.create({ chatId, role, content });
 }
 
-export function getRecentMessages(chatId: number, limit = 20): Message[] {
-  const rows = db
-    .prepare(
-      `SELECT id, chat_id as chatId, role, content, created_at as createdAt 
-       FROM messages 
-       WHERE chat_id = ? 
-       ORDER BY created_at DESC 
-       LIMIT ?`,
-    )
-    .all(chatId, limit) as Message[];
+export async function getRecentMessages(
+  chatId: number,
+  limit = 20,
+): Promise<MessageType[]> {
+  const messages = await Message.find({ chatId })
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .lean();
 
-  return rows.reverse();
+  return messages.reverse().map((m) => ({
+    id: m._id.toString(),
+    chatId: m.chatId,
+    role: m.role as "user" | "assistant",
+    content: m.content,
+    createdAt: m.createdAt,
+  }));
 }
 
 // Summaries
-export function saveSummary(
+export async function saveSummary(
   chatId: number,
   type: "daily" | "weekly",
   content: string,
   periodStart: Date,
   periodEnd: Date,
-): void {
-  db.prepare(
-    `INSERT INTO summaries (chat_id, type, content, period_start, period_end) 
-     VALUES (?, ?, ?, ?, ?)`,
-  ).run(
-    chatId,
-    type,
-    content,
-    periodStart.toISOString(),
-    periodEnd.toISOString(),
-  );
+): Promise<void> {
+  await Summary.create({ chatId, type, content, periodStart, periodEnd });
 }
 
-export function getSummaries(chatId: number, limit = 5): Summary[] {
-  return db
-    .prepare(
-      `SELECT id, chat_id as chatId, type, content, 
-              period_start as periodStart, period_end as periodEnd, 
-              created_at as createdAt
-       FROM summaries 
-       WHERE chat_id = ? 
-       ORDER BY period_end DESC 
-       LIMIT ?`,
-    )
-    .all(chatId, limit) as Summary[];
+export async function getSummaries(
+  chatId: number,
+  limit = 5,
+): Promise<SummaryType[]> {
+  const summaries = await Summary.find({ chatId })
+    .sort({ periodEnd: -1 })
+    .limit(limit)
+    .lean();
+
+  return summaries.map((s) => ({
+    id: s._id.toString(),
+    chatId: s.chatId,
+    type: s.type as "daily" | "weekly",
+    content: s.content,
+    periodStart: s.periodStart,
+    periodEnd: s.periodEnd,
+    createdAt: s.createdAt,
+  }));
 }
 
 // User Profile
-export function getOrCreateProfile(chatId: number): UserProfile {
-  const existing = db
-    .prepare(
-      "SELECT chat_id as chatId, facts, updated_at as updatedAt FROM user_profiles WHERE chat_id = ?",
-    )
-    .get(chatId) as
-    | { chatId: number; facts: string; updatedAt: string }
-    | undefined;
+export async function getOrCreateProfile(
+  chatId: number,
+): Promise<UserProfileType> {
+  let profile = await UserProfile.findOne({ chatId }).lean();
 
-  if (existing) {
-    return {
-      chatId: existing.chatId,
-      facts: JSON.parse(existing.facts),
-      updatedAt: new Date(existing.updatedAt),
-    };
+  if (!profile) {
+    await UserProfile.create({ chatId, facts: {} });
+    return { chatId, facts: {}, updatedAt: new Date() };
   }
 
-  db.prepare("INSERT INTO user_profiles (chat_id) VALUES (?)").run(chatId);
-  return { chatId, facts: {}, updatedAt: new Date() };
+  const facts: Record<string, string> = {};
+  if (profile.facts instanceof Map) {
+    profile.facts.forEach((value: string, key: string) => {
+      facts[key] = value;
+    });
+  } else if (profile.facts && typeof profile.facts === "object") {
+    Object.entries(profile.facts).forEach(([key, value]) => {
+      facts[key] = value;
+    });
+  }
+
+  return {
+    chatId: profile.chatId,
+    facts,
+    updatedAt: profile.updatedAt,
+  };
 }
 
-export function updateProfileFacts(
+export async function updateProfileFacts(
   chatId: number,
   facts: Record<string, string>,
-): void {
-  db.prepare(
-    "UPDATE user_profiles SET facts = ?, updated_at = CURRENT_TIMESTAMP WHERE chat_id = ?",
-  ).run(JSON.stringify(facts), chatId);
+): Promise<void> {
+  await UserProfile.findOneAndUpdate(
+    { chatId },
+    { facts, updatedAt: new Date() },
+    { upsert: true },
+  );
 }
 
 // Pending Followups
-export function addFollowup(
+export async function addFollowup(
   chatId: number,
   topic: string,
   triggerAt: Date,
-): void {
-  db.prepare(
-    "INSERT INTO pending_followups (chat_id, topic, trigger_at) VALUES (?, ?, ?)",
-  ).run(chatId, topic, triggerAt.toISOString());
+): Promise<void> {
+  await PendingFollowup.create({ chatId, topic, triggerAt });
 }
 
-export function getDueFollowups(): PendingFollowup[] {
-  return db
-    .prepare(
-      `SELECT id, chat_id as chatId, topic, trigger_at as triggerAt, 
-              completed, created_at as createdAt
-       FROM pending_followups 
-       WHERE completed = 0 AND trigger_at <= datetime('now')
-       ORDER BY trigger_at ASC`,
-    )
-    .all() as PendingFollowup[];
+export async function getDueFollowups(): Promise<PendingFollowupType[]> {
+  const followups = await PendingFollowup.find({
+    completed: false,
+    triggerAt: { $lte: new Date() },
+  })
+    .sort({ triggerAt: 1 })
+    .lean();
+
+  return followups.map((f) => ({
+    id: f._id.toString(),
+    chatId: f.chatId,
+    topic: f.topic,
+    triggerAt: f.triggerAt,
+    completed: f.completed,
+    createdAt: f.createdAt,
+  }));
 }
 
-export function markFollowupComplete(id: number): void {
-  db.prepare("UPDATE pending_followups SET completed = 1 WHERE id = ?").run(id);
+export async function getPendingFollowups(
+  chatId: number,
+): Promise<PendingFollowupType[]> {
+  const followups = await PendingFollowup.find({ chatId, completed: false })
+    .sort({ triggerAt: 1 })
+    .lean();
+
+  return followups.map((f) => ({
+    id: f._id.toString(),
+    chatId: f.chatId,
+    topic: f.topic,
+    triggerAt: f.triggerAt,
+    completed: f.completed,
+    createdAt: f.createdAt,
+  }));
 }
 
-export function getPendingFollowups(chatId: number): PendingFollowup[] {
-  return db
-    .prepare(
-      `SELECT id, chat_id as chatId, topic, trigger_at as triggerAt, 
-              completed, created_at as createdAt
-       FROM pending_followups 
-       WHERE chat_id = ? AND completed = 0
-       ORDER BY trigger_at ASC`,
-    )
-    .all(chatId) as PendingFollowup[];
+export async function markFollowupComplete(id: string): Promise<void> {
+  await PendingFollowup.findByIdAndUpdate(id, { completed: true });
 }
 
-export function clearChatData(chatId: number): void {
-  db.prepare("DELETE FROM messages WHERE chat_id = ?").run(chatId);
-  db.prepare("DELETE FROM summaries WHERE chat_id = ?").run(chatId);
-  db.prepare("DELETE FROM user_profiles WHERE chat_id = ?").run(chatId);
-  db.prepare("DELETE FROM pending_followups WHERE chat_id = ?").run(chatId);
+// Clear data
+export async function clearChatData(chatId: number): Promise<void> {
+  await Promise.all([
+    Message.deleteMany({ chatId }),
+    Summary.deleteMany({ chatId }),
+    UserProfile.deleteOne({ chatId }),
+    PendingFollowup.deleteMany({ chatId }),
+  ]);
 }

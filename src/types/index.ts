@@ -1,5 +1,5 @@
 export interface Message {
-  id: number;
+  id: string;
   chatId: number;
   role: "user" | "assistant";
   content: string;
@@ -7,7 +7,7 @@ export interface Message {
 }
 
 export interface Summary {
-  id: number;
+  id: string;
   chatId: number;
   type: "daily" | "weekly";
   content: string;
@@ -23,7 +23,7 @@ export interface UserProfile {
 }
 
 export interface PendingFollowup {
-  id: number;
+  id: string;
   chatId: number;
   topic: string;
   triggerAt: Date;

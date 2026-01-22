@@ -17,7 +17,7 @@ export function startScheduler(bot: Bot): void {
     async () => {
       console.log("Running daily summarization...");
 
-      const chatIds = getAllChatIds();
+      const chatIds = await getAllChatIds();
 
       for (const chatId of chatIds) {
         try {
@@ -39,7 +39,7 @@ export function startScheduler(bot: Bot): void {
     async () => {
       console.log("Running weekly summarization...");
 
-      const chatIds = getAllChatIds();
+      const chatIds = await getAllChatIds();
 
       for (const chatId of chatIds) {
         try {
@@ -63,7 +63,7 @@ export function startScheduler(bot: Bot): void {
 
       console.log("Running check-ins...");
 
-      const chatIds = getAllChatIds();
+      const chatIds = await getAllChatIds();
 
       for (const chatId of chatIds) {
         try {

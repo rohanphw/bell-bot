@@ -1,14 +1,14 @@
 import { layout } from "./layout";
 
 interface Message {
-  id: number;
+  id: string;
   role: string;
   content: string;
   createdAt: string;
 }
 
 interface Summary {
-  id: number;
+  id: string;
   type: string;
   content: string;
   periodStart: string;
@@ -16,10 +16,10 @@ interface Summary {
 }
 
 interface Followup {
-  id: number;
+  id: string;
   topic: string;
   triggerAt: string;
-  completed: number;
+  completed: number | boolean;
 }
 
 interface ChatDetail {
@@ -31,47 +31,34 @@ interface ChatDetail {
 }
 
 export function chatDetailView(data: ChatDetail): string {
-  const messagesHtml = data.messages
-    .map(
-      (m) => `
+  const messagesHtml = data.messages.map(m => `
     <div class="message ${m.role}">
       <div>${escapeHtml(m.content)}</div>
       <div class="meta">${new Date(m.createdAt).toLocaleString()}</div>
     </div>
-  `,
-    )
-    .join("");
+  `).join("");
 
-  const summariesHtml =
-    data.summaries
-      .map(
-        (s) => `
+  const summariesHtml = data.summaries.map(s => `
     <div class="card">
       <span class="tag ${s.type}">${s.type}</span>
       <p>${escapeHtml(s.content)}</p>
       <small>${new Date(s.periodStart).toLocaleDateString()} - ${new Date(s.periodEnd).toLocaleDateString()}</small>
     </div>
-  `,
-      )
-      .join("") || "<p>No summaries yet</p>";
+  `).join("") || "<p>No summaries yet</p>";
 
-  const followupsHtml =
-    data.followups
-      .map(
-        (f) => `
+  const followupsHtml = data.followups.map(f => {
+    const isCompleted = f.completed === 1 || f.completed === true;
+    return `
     <div class="card">
-      <span class="tag ${f.completed ? "completed" : "pending"}">${f.completed ? "done" : "pending"}</span>
+      <span class="tag ${isCompleted ? 'completed' : 'pending'}">${isCompleted ? 'done' : 'pending'}</span>
       <strong>${escapeHtml(f.topic)}</strong>
       <p>Trigger: ${new Date(f.triggerAt).toLocaleString()}</p>
     </div>
-  `,
-      )
-      .join("") || "<p>No followups</p>";
+  `}).join("") || "<p>No followups</p>";
 
-  const profileHtml =
-    Object.entries(data.profile).length > 0
-      ? `<pre>${escapeHtml(JSON.stringify(data.profile, null, 2))}</pre>`
-      : "<p>No profile data yet</p>";
+  const profileHtml = Object.entries(data.profile).length > 0
+    ? `<pre>${escapeHtml(JSON.stringify(data.profile, null, 2))}</pre>`
+    : "<p>No profile data yet</p>";
 
   const content = `
     <h1>Chat ${data.chatId}</h1>

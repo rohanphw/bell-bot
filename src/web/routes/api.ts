@@ -1,157 +1,161 @@
 import { Router } from "express";
-import { db } from "../../db";
+import { Message, Summary, UserProfile, PendingFollowup } from "../../db";
 
 const router = Router();
 
 // Get all chats
-router.get("/chats", (req, res) => {
-  const chats = db
-    .prepare(
-      `
-    SELECT 
-      chat_id as chatId,
-      COUNT(*) as messageCount,
-      MAX(created_at) as lastMessage
-    FROM messages
-    GROUP BY chat_id
-    ORDER BY lastMessage DESC
-  `,
-    )
-    .all();
+router.get("/chats", async (req, res) => {
+  const chats = await Message.aggregate([
+    {
+      $group: {
+        _id: "$chatId",
+        messageCount: { $sum: 1 },
+        lastMessage: { $max: "$createdAt" },
+      },
+    },
+    { $sort: { lastMessage: -1 } },
+  ]);
 
-  res.json(chats);
+  res.json(
+    chats.map((c) => ({
+      chatId: c._id,
+      messageCount: c.messageCount,
+      lastMessage: c.lastMessage,
+    })),
+  );
 });
 
 // Get chat detail
-router.get("/chats/:id", (req, res) => {
+router.get("/chats/:id", async (req, res) => {
   const chatId = parseInt(req.params.id, 10);
 
-  const messageCount = db
-    .prepare("SELECT COUNT(*) as count FROM messages WHERE chat_id = ?")
-    .get(chatId) as { count: number };
+  const messageCount = await Message.countDocuments({ chatId });
+  const summaryCount = await Summary.countDocuments({ chatId });
+  const followupCount = await PendingFollowup.countDocuments({
+    chatId,
+    completed: false,
+  });
+  const profile = await UserProfile.findOne({ chatId }).lean();
 
-  const summaryCount = db
-    .prepare("SELECT COUNT(*) as count FROM summaries WHERE chat_id = ?")
-    .get(chatId) as { count: number };
-
-  const followupCount = db
-    .prepare(
-      "SELECT COUNT(*) as count FROM pending_followups WHERE chat_id = ? AND completed = 0",
-    )
-    .get(chatId) as { count: number };
-
-  const profile = db
-    .prepare("SELECT facts FROM user_profiles WHERE chat_id = ?")
-    .get(chatId) as { facts: string } | undefined;
+  const facts: Record<string, string> = {};
+  if (profile?.facts) {
+    if (profile.facts instanceof Map) {
+      profile.facts.forEach((value: string, key: string) => {
+        facts[key] = value;
+      });
+    } else {
+      Object.assign(facts, profile.facts);
+    }
+  }
 
   res.json({
     chatId,
-    messageCount: messageCount.count,
-    summaryCount: summaryCount.count,
-    pendingFollowups: followupCount.count,
-    profile: profile ? JSON.parse(profile.facts) : {},
+    messageCount,
+    summaryCount,
+    pendingFollowups: followupCount,
+    profile: facts,
   });
 });
 
 // Get messages for a chat
-router.get("/chats/:id/messages", (req, res) => {
+router.get("/chats/:id/messages", async (req, res) => {
   const chatId = parseInt(req.params.id, 10);
   const limit = parseInt(req.query.limit as string, 10) || 50;
 
-  const messages = db
-    .prepare(
-      `
-    SELECT id, role, content, created_at as createdAt
-    FROM messages
-    WHERE chat_id = ?
-    ORDER BY created_at DESC
-    LIMIT ?
-  `,
-    )
-    .all(chatId, limit);
+  const messages = await Message.find({ chatId })
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .lean();
 
-  res.json(messages.reverse());
+  res.json(
+    messages.reverse().map((m) => ({
+      id: m._id,
+      role: m.role,
+      content: m.content,
+      createdAt: m.createdAt,
+    })),
+  );
 });
 
 // Get summaries for a chat
-router.get("/chats/:id/summaries", (req, res) => {
+router.get("/chats/:id/summaries", async (req, res) => {
   const chatId = parseInt(req.params.id, 10);
 
-  const summaries = db
-    .prepare(
-      `
-    SELECT id, type, content, period_start as periodStart, period_end as periodEnd, created_at as createdAt
-    FROM summaries
-    WHERE chat_id = ?
-    ORDER BY created_at DESC
-  `,
-    )
-    .all(chatId);
+  const summaries = await Summary.find({ chatId })
+    .sort({ createdAt: -1 })
+    .lean();
 
-  res.json(summaries);
+  res.json(
+    summaries.map((s) => ({
+      id: s._id,
+      type: s.type,
+      content: s.content,
+      periodStart: s.periodStart,
+      periodEnd: s.periodEnd,
+      createdAt: s.createdAt,
+    })),
+  );
 });
 
 // Get profile for a chat
-router.get("/chats/:id/profile", (req, res) => {
+router.get("/chats/:id/profile", async (req, res) => {
   const chatId = parseInt(req.params.id, 10);
 
-  const profile = db
-    .prepare(
-      "SELECT facts, updated_at as updatedAt FROM user_profiles WHERE chat_id = ?",
-    )
-    .get(chatId) as { facts: string; updatedAt: string } | undefined;
+  const profile = await UserProfile.findOne({ chatId }).lean();
 
   if (!profile) {
     res.json({ facts: {}, updatedAt: null });
     return;
   }
 
+  const facts: Record<string, string> = {};
+  if (profile.facts instanceof Map) {
+    profile.facts.forEach((value: string, key: string) => {
+      facts[key] = value;
+    });
+  } else if (profile.facts) {
+    Object.assign(facts, profile.facts);
+  }
+
   res.json({
-    facts: JSON.parse(profile.facts),
+    facts,
     updatedAt: profile.updatedAt,
   });
 });
 
 // Get followups for a chat
-router.get("/chats/:id/followups", (req, res) => {
+router.get("/chats/:id/followups", async (req, res) => {
   const chatId = parseInt(req.params.id, 10);
 
-  const followups = db
-    .prepare(
-      `
-    SELECT id, topic, trigger_at as triggerAt, completed, created_at as createdAt
-    FROM pending_followups
-    WHERE chat_id = ?
-    ORDER BY trigger_at DESC
-  `,
-    )
-    .all(chatId);
+  const followups = await PendingFollowup.find({ chatId })
+    .sort({ triggerAt: -1 })
+    .lean();
 
-  res.json(followups);
+  res.json(
+    followups.map((f) => ({
+      id: f._id,
+      topic: f.topic,
+      triggerAt: f.triggerAt,
+      completed: f.completed,
+      createdAt: f.createdAt,
+    })),
+  );
 });
 
 // Get overall stats
-router.get("/stats", (req, res) => {
-  const totalChats = db
-    .prepare("SELECT COUNT(DISTINCT chat_id) as count FROM messages")
-    .get() as { count: number };
-  const totalMessages = db
-    .prepare("SELECT COUNT(*) as count FROM messages")
-    .get() as { count: number };
-  const totalSummaries = db
-    .prepare("SELECT COUNT(*) as count FROM summaries")
-    .get() as { count: number };
-  const pendingFollowups = db
-    .prepare(
-      "SELECT COUNT(*) as count FROM pending_followups WHERE completed = 0",
-    )
-    .get() as { count: number };
+router.get("/stats", async (req, res) => {
+  const totalChats = await Message.distinct("chatId").then((ids) => ids.length);
+  const totalMessages = await Message.countDocuments();
+  const totalSummaries = await Summary.countDocuments();
+  const pendingFollowups = await PendingFollowup.countDocuments({
+    completed: false,
+  });
 
   res.json({
-    totalChats: totalChats.count,
-    totalMessages: totalMessages.count,
-    totalSummaries: totalSummaries.count,
-    pendingFollowups: pendingFollowups.count,
+    totalChats,
+    totalMessages,
+    totalSummaries,
+    pendingFollowups,
   });
 });
 

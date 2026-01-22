@@ -21,13 +21,13 @@ export async function handleMessage(ctx: Context): Promise<void> {
   if (!text || !chatId) return;
 
   // Save user message
-  saveMessage(chatId, "user", text);
+  await saveMessage(chatId, "user", text);
 
   try {
     // Build context
-    const recentMessages = getRecentMessages(chatId, 20);
-    const summaries = getSummaries(chatId, 5);
-    const profile = getOrCreateProfile(chatId);
+    const recentMessages = await getRecentMessages(chatId, 20);
+    const summaries = await getSummaries(chatId, 5);
+    const profile = await getOrCreateProfile(chatId);
 
     // Generate response
     const response = await generateResponse(text, {
@@ -37,7 +37,7 @@ export async function handleMessage(ctx: Context): Promise<void> {
     });
 
     // Save bot response
-    saveMessage(chatId, "assistant", response);
+    await saveMessage(chatId, "assistant", response);
 
     await ctx.reply(response);
 

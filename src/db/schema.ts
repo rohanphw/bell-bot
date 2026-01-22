@@ -1,69 +1,49 @@
-import Database from "better-sqlite3";
-import path from "path";
-import fs from "fs";
+import mongoose from "mongoose";
 import { env } from "../config/env";
 
-// Ensure data directory exists
-if (!fs.existsSync(env.DATA_DIR)) {
-  fs.mkdirSync(env.DATA_DIR, { recursive: true });
+export async function initializeDb(): Promise<void> {
+  await mongoose.connect(env.MONGO_URI);
+  console.log("Connected to MongoDB");
 }
 
-const dbPath = path.join(env.DATA_DIR, "bellbot.db");
+// Message Schema
+const messageSchema = new mongoose.Schema({
+  chatId: { type: Number, required: true, index: true },
+  role: { type: String, required: true, enum: ["user", "assistant"] },
+  content: { type: String, required: true },
+  createdAt: { type: Date, default: Date.now, index: true },
+});
 
-console.log(`Database path: ${dbPath}`);
-console.log(`Database exists: ${fs.existsSync(dbPath)}`);
+// Summary Schema
+const summarySchema = new mongoose.Schema({
+  chatId: { type: Number, required: true, index: true },
+  type: { type: String, required: true, enum: ["daily", "weekly"] },
+  content: { type: String, required: true },
+  periodStart: { type: Date, required: true },
+  periodEnd: { type: Date, required: true },
+  createdAt: { type: Date, default: Date.now },
+});
 
-export const db = new Database(dbPath);
+// User Profile Schema
+const userProfileSchema = new mongoose.Schema({
+  chatId: { type: Number, required: true, unique: true },
+  facts: { type: Map, of: String, default: {} },
+  updatedAt: { type: Date, default: Date.now },
+});
 
-export function initializeDb(): void {
-  // Log existing tables
-  const tables = db
-    .prepare("SELECT name FROM sqlite_master WHERE type='table'")
-    .all();
-  console.log("Existing tables:", tables);
+// Pending Followup Schema
+const pendingFollowupSchema = new mongoose.Schema({
+  chatId: { type: Number, required: true, index: true },
+  topic: { type: String, required: true },
+  triggerAt: { type: Date, required: true, index: true },
+  completed: { type: Boolean, default: false },
+  createdAt: { type: Date, default: Date.now },
+});
 
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS messages (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      chat_id INTEGER NOT NULL,
-      role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
-      content TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS summaries (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      chat_id INTEGER NOT NULL,
-      type TEXT NOT NULL CHECK (type IN ('daily', 'weekly')),
-      content TEXT NOT NULL,
-      period_start DATETIME NOT NULL,
-      period_end DATETIME NOT NULL,w
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS user_profiles (
-      chat_id INTEGER PRIMARY KEY,
-      facts TEXT NOT NULL DEFAULT '{}',
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS pending_followups (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      chat_id INTEGER NOT NULL,
-      topic TEXT NOT NULL,
-      trigger_at DATETIME NOT NULL,
-      completed INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_messages_chat_id ON messages(chat_id);
-    CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);
-    CREATE INDEX IF NOT EXISTS idx_summaries_chat_id ON summaries(chat_id);
-    CREATE INDEX IF NOT EXISTS idx_followups_trigger ON pending_followups(trigger_at, completed);
-  `);
-
-  const messageCount = db
-    .prepare("SELECT COUNT(*) as count FROM messages")
-    .get() as { count: number };
-  console.log(`Total messages in database: ${messageCount.count}`);
-}
+export const Message = mongoose.model("Message", messageSchema);
+export const Summary = mongoose.model("Summary", summarySchema);
+export const UserProfile = mongoose.model("UserProfile", userProfileSchema);
+export const PendingFollowup = mongoose.model(
+  "PendingFollowup",
+  pendingFollowupSchema,
+);

@@ -57,7 +57,7 @@ Rules:
 
     // Save to database
     for (const followup of followups) {
-      addFollowup(chatId, followup.topic, new Date(followup.triggerAt));
+      await addFollowup(chatId, followup.topic, new Date(followup.triggerAt));
       console.log(`Followup added for chat ${chatId}: ${followup.topic}`);
     }
 

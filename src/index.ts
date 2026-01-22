@@ -3,13 +3,20 @@ import { initializeDb } from "./db";
 import { startScheduler } from "./services";
 import { startWebServer } from "./web";
 
-initializeDb();
-console.log("Database initialized");
+async function main() {
+  await initializeDb();
+  console.log("Database initialized");
 
-const bot = createBot();
+  const bot = createBot();
 
-startScheduler(bot);
-startWebServer();
+  startScheduler(bot);
+  startWebServer();
 
-bot.start();
-console.log("Bot is running...");
+  bot.start();
+  console.log("Bot is running...");
+}
+
+main().catch((err) => {
+  console.error("Failed to start:", err);
+  process.exit(1);
+});

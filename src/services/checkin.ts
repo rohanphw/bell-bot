@@ -1,8 +1,14 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { Bot } from "grammy";
 import { env } from "../config/env";
-import { db } from "../db";
-import { getSummaries, getOrCreateProfile, getDueFollowups, markFollowupComplete, saveMessage } from "../db";
+import { Message } from "../db";
+import {
+  getSummaries,
+  getOrCreateProfile,
+  getDueFollowups,
+  markFollowupComplete,
+  saveMessage,
+} from "../db";
 
 const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
 
@@ -11,25 +17,24 @@ interface CheckinDecision {
   message: string | null;
 }
 
-export async function generateCheckin(chatId: number): Promise<CheckinDecision> {
-  const profile = getOrCreateProfile(chatId);
-  const summaries = getSummaries(chatId, 3);
-  const dueFollowups = getDueFollowups().filter((f) => f.chatId === chatId);
+export async function generateCheckin(
+  chatId: number,
+): Promise<CheckinDecision> {
+  const profile = await getOrCreateProfile(chatId);
+  const summaries = await getSummaries(chatId, 3);
+  const allDueFollowups = await getDueFollowups();
+  const dueFollowups = allDueFollowups.filter((f) => f.chatId === chatId);
 
   // Get last message time to avoid checking in too frequently
-  const lastMessage = db
-    .prepare(
-      `SELECT created_at FROM messages 
-       WHERE chat_id = ? 
-       ORDER BY created_at DESC 
-       LIMIT 1`
-    )
-    .get(chatId) as { created_at: string } | undefined;
+  const lastMessage = await Message.findOne({ chatId })
+    .sort({ createdAt: -1 })
+    .lean();
 
   if (lastMessage) {
     const hoursSinceLastMessage =
-      (Date.now() - new Date(lastMessage.created_at).getTime()) / (1000 * 60 * 60);
-    
+      (Date.now() - new Date(lastMessage.createdAt).getTime()) /
+      (1000 * 60 * 60);
+
     // Don't check in if we talked within the last 4 hours
     if (hoursSinceLastMessage < 4) {
       return { shouldCheckin: false, message: null };
@@ -76,7 +81,7 @@ Keep messages warm, brief, and natural - like a friend texting. Don't be robotic
       .replace(/```json\n?/g, "")
       .replace(/```\n?/g, "")
       .trim();
-    
+
     return JSON.parse(cleanedText);
   } catch {
     return { shouldCheckin: false, message: null };
@@ -89,14 +94,15 @@ export async function sendCheckin(bot: Bot, chatId: number): Promise<boolean> {
 
     if (decision.shouldCheckin && decision.message) {
       await bot.api.sendMessage(chatId, decision.message);
-      saveMessage(chatId, "assistant", decision.message);
-      
+      await saveMessage(chatId, "assistant", decision.message);
+
       // Mark any due followups as complete
-      const dueFollowups = getDueFollowups().filter((f) => f.chatId === chatId);
+      const allDueFollowups = await getDueFollowups();
+      const dueFollowups = allDueFollowups.filter((f) => f.chatId === chatId);
       for (const followup of dueFollowups) {
-        markFollowupComplete(followup.id);
+        await markFollowupComplete(followup.id);
       }
-      
+
       return true;
     }
 

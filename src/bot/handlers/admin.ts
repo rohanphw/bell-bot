@@ -56,7 +56,7 @@ export async function handleProfile(ctx: Context): Promise<void> {
   const chatId = ctx.chat?.id;
   if (!chatId) return;
 
-  const profile = getOrCreateProfile(chatId);
+  const profile = await getOrCreateProfile(chatId);
   const facts = Object.entries(profile.facts);
 
   if (facts.length === 0) {
@@ -80,7 +80,7 @@ export async function handleExtractProfile(ctx: Context): Promise<void> {
   await ctx.reply("Extracting profile from recent messages...");
 
   try {
-    const recentMessages = getRecentMessages(chatId, 20);
+    const recentMessages = await getRecentMessages(chatId, 20);
 
     if (recentMessages.length < 4) {
       await ctx.reply("Not enough messages to extract a profile yet.");
@@ -130,7 +130,7 @@ export async function handleFollowups(ctx: Context): Promise<void> {
   const chatId = ctx.chat?.id;
   if (!chatId) return;
 
-  const followups = getPendingFollowups(chatId);
+  const followups = await getPendingFollowups(chatId);
 
   if (followups.length === 0) {
     await ctx.reply("📋 No pending followups.");
@@ -154,7 +154,7 @@ export async function handleExtractFollowups(ctx: Context): Promise<void> {
   await ctx.reply("Extracting followups from recent messages...");
 
   try {
-    const recentMessages = getRecentMessages(chatId, 20);
+    const recentMessages = await getRecentMessages(chatId, 20);
 
     if (recentMessages.length < 2) {
       await ctx.reply("Not enough messages to extract followups.");

@@ -9,7 +9,6 @@ export async function handleReset(ctx: Context): Promise<void> {
   if (!chatId) return;
 
   if (pendingResets.has(chatId)) {
-    // Already waiting for confirmation
     await ctx.reply(
       "⚠️ Confirmation already pending. Send /confirmreset to proceed or /cancelreset to cancel.",
     );
@@ -43,7 +42,7 @@ export async function handleConfirmReset(ctx: Context): Promise<void> {
   }
 
   pendingResets.delete(chatId);
-  clearChatData(chatId);
+  await clearChatData(chatId);
 
   await ctx.reply(
     "🗑️ All data cleared. Let's start fresh!\n\nHi, I'm Bell. How are you doing today?",

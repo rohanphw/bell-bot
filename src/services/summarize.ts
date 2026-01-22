@@ -1,15 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { env } from "../config/env";
-import { db } from "../db";
+import { Message, Summary } from "../db";
 import { saveSummary } from "../db";
 
 const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
-
-interface RawMessage {
-  role: string;
-  content: string;
-  created_at: string;
-}
 
 export async function summarizeDaily(chatId: number): Promise<string | null> {
   const now = new Date();
@@ -17,17 +11,14 @@ export async function summarizeDaily(chatId: number): Promise<string | null> {
   yesterday.setDate(yesterday.getDate() - 1);
 
   // Get messages from the last 24 hours
-  const messages = db
-    .prepare(
-      `SELECT role, content, created_at 
-       FROM messages 
-       WHERE chat_id = ? AND created_at >= ? 
-       ORDER BY created_at ASC`,
-    )
-    .all(chatId, yesterday.toISOString()) as RawMessage[];
+  const messages = await Message.find({
+    chatId,
+    createdAt: { $gte: yesterday },
+  })
+    .sort({ createdAt: 1 })
+    .lean();
 
   if (messages.length < 4) {
-    // Not enough conversation to summarize
     return null;
   }
 
@@ -60,7 +51,7 @@ Keep summaries factual and concise. Use bullet points. Do not include fluff.`,
   const summary = textBlock?.text ?? null;
 
   if (summary) {
-    saveSummary(chatId, "daily", summary, yesterday, now);
+    await saveSummary(chatId, "daily", summary, yesterday, now);
   }
 
   return summary;
@@ -72,26 +63,20 @@ export async function summarizeWeekly(chatId: number): Promise<string | null> {
   weekAgo.setDate(weekAgo.getDate() - 7);
 
   // Get daily summaries from the past week
-  const summaries = db
-    .prepare(
-      `SELECT content, period_start, period_end 
-       FROM summaries 
-       WHERE chat_id = ? AND type = 'daily' AND created_at >= ? 
-       ORDER BY period_start ASC`,
-    )
-    .all(chatId, weekAgo.toISOString()) as {
-    content: string;
-    period_start: string;
-    period_end: string;
-  }[];
+  const summaries = await Summary.find({
+    chatId,
+    type: "daily",
+    createdAt: { $gte: weekAgo },
+  })
+    .sort({ periodStart: 1 })
+    .lean();
 
   if (summaries.length < 3) {
-    // Not enough daily summaries for a weekly rollup
     return null;
   }
 
   const summaryText = summaries
-    .map((s) => `[${s.period_start.split("T")[0]}]\n${s.content}`)
+    .map((s) => `[${s.periodStart.toISOString().split("T")[0]}]\n${s.content}`)
     .join("\n\n");
 
   const response = await client.messages.create({
@@ -119,16 +104,13 @@ Keep it concise and insightful.`,
   const summary = textBlock?.text ?? null;
 
   if (summary) {
-    saveSummary(chatId, "weekly", summary, weekAgo, now);
+    await saveSummary(chatId, "weekly", summary, weekAgo, now);
   }
 
   return summary;
 }
 
-export function getAllChatIds(): number[] {
-  const rows = db.prepare("SELECT DISTINCT chat_id FROM messages").all() as {
-    chat_id: number;
-  }[];
-
-  return rows.map((r) => r.chat_id);
+export async function getAllChatIds(): Promise<number[]> {
+  const chats = await Message.distinct("chatId");
+  return chats;
 }

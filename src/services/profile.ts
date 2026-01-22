@@ -8,7 +8,7 @@ export async function extractAndUpdateProfile(
   chatId: number,
   recentConversation: string
 ): Promise<Record<string, string>> {
-  const currentProfile = getOrCreateProfile(chatId);
+  const currentProfile = await getOrCreateProfile(chatId);
 
   const response = await client.messages.create({
     model: "claude-sonnet-4-20250514",
@@ -39,14 +39,13 @@ Only include facts explicitly stated or strongly implied. Don't guess.`,
   if (!textBlock) return currentProfile.facts;
 
   try {
-    // Clean potential markdown code blocks
     const cleanedText = textBlock.text
       .replace(/```json\n?/g, "")
       .replace(/```\n?/g, "")
       .trim();
-    
+
     const newFacts = JSON.parse(cleanedText);
-    updateProfileFacts(chatId, newFacts);
+    await updateProfileFacts(chatId, newFacts);
     return newFacts;
   } catch (error) {
     console.error("Failed to parse profile JSON:", error);
