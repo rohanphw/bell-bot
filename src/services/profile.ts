@@ -6,7 +6,7 @@ const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
 
 export async function extractAndUpdateProfile(
   chatId: number,
-  recentConversation: string
+  recentConversation: string,
 ): Promise<Record<string, string>> {
   const currentProfile = await getOrCreateProfile(chatId);
 
@@ -26,11 +26,25 @@ Extract facts like:
 - preferences
 - mental_health_notes (patterns you notice, but be gentle)
 
+IMPORTANT: All values must be strings, not arrays. If there are multiple items, combine them into a single comma-separated string.
+
+Example of correct format:
+{
+  "name": "John",
+  "interests": "gaming, music, hiking",
+  "ongoing_situations": "job search, dealing with anxiety"
+}
+
+Example of INCORRECT format (do not do this):
+{
+  "interests": ["gaming", "music", "hiking"]
+}
+
 Only include facts explicitly stated or strongly implied. Don't guess.`,
     messages: [
       {
         role: "user",
-        content: `Current profile:\n${JSON.stringify(currentProfile.facts, null, 2)}\n\nRecent conversation:\n${recentConversation}\n\nReturn updated profile as JSON, merging new facts with existing ones. Only JSON, no explanation.`,
+        content: `Current profile:\n${JSON.stringify(currentProfile.facts, null, 2)}\n\nRecent conversation:\n${recentConversation}\n\nReturn updated profile as JSON, merging new facts with existing ones. Only JSON, no explanation. Remember: all values must be strings, not arrays.`,
       },
     ],
   });
@@ -44,7 +58,20 @@ Only include facts explicitly stated or strongly implied. Don't guess.`,
       .replace(/```\n?/g, "")
       .trim();
 
-    const newFacts = JSON.parse(cleanedText);
+    const parsed = JSON.parse(cleanedText);
+
+    // Ensure all values are strings (flatten arrays if LLM didn't follow instructions)
+    const newFacts: Record<string, string> = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      if (Array.isArray(value)) {
+        newFacts[key] = value.join(", ");
+      } else if (typeof value === "string") {
+        newFacts[key] = value;
+      } else if (value !== null && value !== undefined) {
+        newFacts[key] = String(value);
+      }
+    }
+
     await updateProfileFacts(chatId, newFacts);
     return newFacts;
   } catch (error) {
