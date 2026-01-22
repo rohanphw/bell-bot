@@ -1,5 +1,9 @@
 import { Router } from "express";
 import { Message, Summary, UserProfile, PendingFollowup } from "../../db";
+import { getRecentMessages } from "../../db";
+import { summarizeDaily } from "../../services/summarize";
+import { extractAndUpdateProfile } from "../../services/profile";
+import { extractFollowups } from "../../services/followup";
 
 const router = Router();
 
@@ -157,6 +161,82 @@ router.get("/stats", async (req, res) => {
     totalSummaries,
     pendingFollowups,
   });
+});
+
+// Trigger daily summary
+router.post("/chats/:id/summarize", async (req, res) => {
+  const chatId = parseInt(req.params.id, 10);
+
+  try {
+    const summary = await summarizeDaily(chatId);
+
+    if (summary) {
+      res.json({ success: true, summary });
+    } else {
+      res.json({ success: false, message: "Not enough messages to summarize" });
+    }
+  } catch (error) {
+    console.error("Summarize error:", error);
+    res.status(500).json({ success: false, message: "Failed to summarize" });
+  }
+});
+
+// Trigger profile extraction
+router.post("/chats/:id/extract-profile", async (req, res) => {
+  const chatId = parseInt(req.params.id, 10);
+
+  try {
+    const recentMessages = await getRecentMessages(chatId, 20);
+
+    if (recentMessages.length < 4) {
+      res.json({
+        success: false,
+        message: "Not enough messages to extract profile",
+      });
+      return;
+    }
+
+    const conversation = recentMessages
+      .map((m) => `${m.role}: ${m.content}`)
+      .join("\n");
+
+    const profile = await extractAndUpdateProfile(chatId, conversation);
+    res.json({ success: true, profile });
+  } catch (error) {
+    console.error("Profile extraction error:", error);
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to extract profile" });
+  }
+});
+
+// Trigger followup extraction
+router.post("/chats/:id/extract-followups", async (req, res) => {
+  const chatId = parseInt(req.params.id, 10);
+
+  try {
+    const recentMessages = await getRecentMessages(chatId, 20);
+
+    if (recentMessages.length < 2) {
+      res.json({
+        success: false,
+        message: "Not enough messages to extract followups",
+      });
+      return;
+    }
+
+    const conversation = recentMessages
+      .map((m) => `${m.role}: ${m.content}`)
+      .join("\n");
+
+    const followups = await extractFollowups(chatId, conversation);
+    res.json({ success: true, followups });
+  } catch (error) {
+    console.error("Followup extraction error:", error);
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to extract followups" });
+  }
 });
 
 export default router;

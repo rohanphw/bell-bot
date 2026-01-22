@@ -105,6 +105,41 @@ export function layout(title: string, content: string): string {
       border-radius: 4px;
       overflow-x: auto;
     }
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 15px;
+    }
+    button {
+      background: #3498db;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+    button:hover {
+      background: #2980b9;
+    }
+    button:disabled {
+      background: #bdc3c7;
+      cursor: not-allowed;
+    }
+    #action-result {
+      margin-top: 10px;
+    }
+    .success {
+      color: #27ae60;
+      font-weight: 500;
+    }
+    .error {
+      color: #e74c3c;
+      font-weight: 500;
+    }
   </style>
 </head>
 <body>
