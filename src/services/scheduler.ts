@@ -3,6 +3,7 @@ import { Bot } from "grammy";
 import { env } from "../config/env";
 import { summarizeDaily, summarizeWeekly, getAllChatIds } from "./summarize";
 import { sendCheckin } from "./checkin";
+import { expireOldFollowups } from "../db";
 
 let botInstance: Bot | null = null;
 
@@ -28,6 +29,16 @@ export function startScheduler(bot: Bot): void {
         } catch (error) {
           console.error(`Failed to summarize chat ${chatId}:`, error);
         }
+      }
+
+      // Also expire old followups
+      try {
+        const expired = await expireOldFollowups();
+        if (expired > 0) {
+          console.log(`Expired ${expired} old followups`);
+        }
+      } catch (error) {
+        console.error("Failed to expire followups:", error);
       }
     },
     cronOptions,
@@ -83,6 +94,7 @@ export function startScheduler(bot: Bot): void {
   console.log("  - Daily summaries at midnight");
   console.log("  - Weekly summaries on Sundays at 1am");
   console.log("  - Check-ins at 9am, 2pm, 7pm");
+  console.log("  - Followup expiry at midnight");
 }
 
 export function getBot(): Bot | null {

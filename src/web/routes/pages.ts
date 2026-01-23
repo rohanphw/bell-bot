@@ -11,7 +11,9 @@ router.get("/", async (req, res) => {
   const totalChats = await Message.distinct("chatId").then((ids) => ids.length);
   const totalMessages = await Message.countDocuments();
   const totalSummaries = await Summary.countDocuments();
-  const pendingFollowups = await PendingFollowup.countDocuments({ completed: false });
+  const pendingFollowups = await PendingFollowup.countDocuments({
+    completed: false,
+  });
 
   const html = dashboardView({
     totalChats,
@@ -36,11 +38,13 @@ router.get("/chats", async (req, res) => {
     { $sort: { lastMessage: -1 } },
   ]);
 
-  const html = chatsListView(chats.map((c) => ({
-    chatId: c._id,
-    messageCount: c.messageCount,
-    lastMessage: c.lastMessage,
-  })));
+  const html = chatsListView(
+    chats.map((c) => ({
+      chatId: c._id,
+      messageCount: c.messageCount,
+      lastMessage: c.lastMessage,
+    })),
+  );
 
   res.send(html);
 });
@@ -59,7 +63,7 @@ router.get("/chats/:id", async (req, res) => {
     .lean();
 
   const followups = await PendingFollowup.find({ chatId })
-    .sort({ triggerAt: -1 })
+    .sort({ createdAt: -1 })
     .lean();
 
   const profileDoc = await UserProfile.findOne({ chatId }).lean();
@@ -95,6 +99,11 @@ router.get("/chats/:id", async (req, res) => {
       topic: f.topic,
       triggerAt: f.triggerAt.toISOString(),
       completed: f.completed ? 1 : 0,
+      status: f.status || "pending",
+      sentAt: f.sentAt?.toISOString() || undefined,
+      respondedAt: f.respondedAt?.toISOString() || undefined,
+      checkinMessage: f.checkinMessage || undefined,
+      userResponse: f.userResponse || undefined,
     })),
     profile,
   });

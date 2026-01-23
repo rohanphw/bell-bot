@@ -4,6 +4,8 @@ import {
   getRecentMessages,
   getSummaries,
   getOrCreateProfile,
+  getSentFollowups,
+  updateFollowupResponse,
 } from "../../db";
 import {
   generateResponse,
@@ -20,10 +22,14 @@ export async function handleMessage(ctx: Context): Promise<void> {
 
   if (!text || !chatId) return;
 
-  // Save user message
-  await saveMessage(chatId, "user", text);
-
   try {
+    // Save user message
+    await saveMessage(chatId, "user", text);
+    console.log(`Saved user message from chat ${chatId}`);
+
+    // Check if this is a response to a sent followup
+    await checkAndUpdateFollowupResponse(chatId, text);
+
     // Build context
     const recentMessages = await getRecentMessages(chatId, 20);
     const summaries = await getSummaries(chatId, 5);
@@ -67,5 +73,24 @@ export async function handleMessage(ctx: Context): Promise<void> {
     await ctx.reply(
       "Sorry, I'm having trouble responding right now. Please try again in a moment.",
     );
+  }
+}
+
+async function checkAndUpdateFollowupResponse(
+  chatId: number,
+  userMessage: string,
+): Promise<void> {
+  try {
+    const sentFollowups = await getSentFollowups(chatId);
+
+    if (sentFollowups.length === 0) return;
+
+    // Mark the most recent sent followup as responded
+    // In a more sophisticated system, you could use AI to match the response to specific followups
+    const mostRecentFollowup = sentFollowups[0];
+    await updateFollowupResponse(mostRecentFollowup.id, userMessage);
+    console.log(`Followup "${mostRecentFollowup.topic}" marked as responded`);
+  } catch (error) {
+    console.error("Error updating followup response:", error);
   }
 }

@@ -38,6 +38,16 @@ const pendingFollowupSchema = new mongoose.Schema({
   triggerAt: { type: Date, required: true, index: true },
   completed: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
+  // New fields for tracking
+  status: {
+    type: String,
+    enum: ["pending", "sent", "responded", "no_response", "expired"],
+    default: "pending",
+  },
+  sentAt: { type: Date },
+  respondedAt: { type: Date },
+  checkinMessage: { type: String },
+  userResponse: { type: String },
 });
 
 export const Message = mongoose.model("Message", messageSchema);

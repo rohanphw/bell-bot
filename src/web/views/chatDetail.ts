@@ -20,6 +20,11 @@ interface Followup {
   topic: string;
   triggerAt: string;
   completed: number | boolean;
+  status?: string;
+  sentAt?: string;
+  respondedAt?: string;
+  checkinMessage?: string;
+  userResponse?: string;
 }
 
 interface ChatDetail {
@@ -58,14 +63,50 @@ export function chatDetailView(data: ChatDetail): string {
   const followupsHtml =
     data.followups
       .map((f) => {
-        const isCompleted = f.completed === 1 || f.completed === true;
+        const status = f.status || "pending";
+        const statusClass = getStatusClass(status);
+        const statusLabel = getStatusLabel(status);
+
+        let detailsHtml = `
+      <div class="followup-details">
+        <p><strong>Topic:</strong> ${escapeHtml(f.topic)}</p>
+        <p><strong>Trigger:</strong> ${new Date(f.triggerAt).toLocaleString()}</p>
+    `;
+
+        if (f.sentAt) {
+          detailsHtml += `<p><strong>Sent:</strong> ${new Date(f.sentAt).toLocaleString()}</p>`;
+        }
+
+        if (f.checkinMessage) {
+          detailsHtml += `
+        <div class="followup-message">
+          <strong>Check-in message:</strong>
+          <div class="message assistant">${escapeHtml(f.checkinMessage)}</div>
+        </div>
+      `;
+        }
+
+        if (f.userResponse) {
+          detailsHtml += `
+        <div class="followup-message">
+          <strong>User response:</strong>
+          <div class="message user">${escapeHtml(f.userResponse)}</div>
+        </div>
+      `;
+        }
+
+        if (f.respondedAt) {
+          detailsHtml += `<p><strong>Responded:</strong> ${new Date(f.respondedAt).toLocaleString()}</p>`;
+        }
+
+        detailsHtml += `</div>`;
+
         return `
-    <div class="card">
-      <span class="tag ${isCompleted ? "completed" : "pending"}">${isCompleted ? "done" : "pending"}</span>
-      <strong>${escapeHtml(f.topic)}</strong>
-      <p>Trigger: ${new Date(f.triggerAt).toLocaleString()}</p>
-    </div>
-  `;
+      <div class="card followup-card">
+        <span class="tag ${statusClass}">${statusLabel}</span>
+        ${detailsHtml}
+      </div>
+    `;
       })
       .join("") || "<p>No followups</p>";
 
@@ -141,6 +182,40 @@ export function chatDetailView(data: ChatDetail): string {
   `;
 
   return layout(`Chat ${data.chatId}`, content);
+}
+
+function getStatusClass(status: string): string {
+  switch (status) {
+    case "pending":
+      return "pending";
+    case "sent":
+      return "sent";
+    case "responded":
+      return "responded";
+    case "no_response":
+      return "no-response";
+    case "expired":
+      return "expired";
+    default:
+      return "pending";
+  }
+}
+
+function getStatusLabel(status: string): string {
+  switch (status) {
+    case "pending":
+      return "⏳ Pending";
+    case "sent":
+      return "📤 Sent";
+    case "responded":
+      return "✅ Responded";
+    case "no_response":
+      return "😔 No Response";
+    case "expired":
+      return "⌛ Expired";
+    default:
+      return status;
+  }
 }
 
 function escapeHtml(text: string): string {

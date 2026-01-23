@@ -6,7 +6,7 @@ import {
   getSummaries,
   getOrCreateProfile,
   getDueFollowups,
-  markFollowupComplete,
+  updateFollowupSent,
   saveMessage,
 } from "../db";
 
@@ -15,6 +15,7 @@ const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
 interface CheckinDecision {
   shouldCheckin: boolean;
   message: string | null;
+  followupId?: string;
 }
 
 export async function generateCheckin(
@@ -44,7 +45,7 @@ export async function generateCheckin(
   const context = {
     profile: profile.facts,
     recentSummaries: summaries.map((s) => s.content),
-    pendingFollowups: dueFollowups.map((f) => f.topic),
+    pendingFollowups: dueFollowups.map((f) => ({ id: f.id, topic: f.topic })),
   };
 
   const response = await client.messages.create({
@@ -61,7 +62,8 @@ Consider:
 Respond with JSON only:
 {
   "shouldCheckin": true/false,
-  "message": "your caring check-in message" or null
+  "message": "your caring check-in message" or null,
+  "followupId": "id of the followup this relates to" or null
 }
 
 Keep messages warm, brief, and natural - like a friend texting. Don't be robotic or formal.`,
@@ -96,11 +98,16 @@ export async function sendCheckin(bot: Bot, chatId: number): Promise<boolean> {
       await bot.api.sendMessage(chatId, decision.message);
       await saveMessage(chatId, "assistant", decision.message);
 
-      // Mark any due followups as complete
-      const allDueFollowups = await getDueFollowups();
-      const dueFollowups = allDueFollowups.filter((f) => f.chatId === chatId);
-      for (const followup of dueFollowups) {
-        await markFollowupComplete(followup.id);
+      // Update followup status if this check-in relates to one
+      if (decision.followupId) {
+        await updateFollowupSent(decision.followupId, decision.message);
+      } else {
+        // Mark all due followups as sent for this chat
+        const allDueFollowups = await getDueFollowups();
+        const dueFollowups = allDueFollowups.filter((f) => f.chatId === chatId);
+        for (const followup of dueFollowups) {
+          await updateFollowupSent(followup.id, decision.message);
+        }
       }
 
       return true;

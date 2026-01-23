@@ -94,10 +94,15 @@ export function layout(title: string, content: string): string {
       border-radius: 4px;
       font-size: 12px;
       font-weight: 500;
+      margin-bottom: 10px;
     }
     .tag.daily { background: #e8f5e9; color: #2e7d32; }
     .tag.weekly { background: #e3f2fd; color: #1565c0; }
     .tag.pending { background: #fff3e0; color: #ef6c00; }
+    .tag.sent { background: #e3f2fd; color: #1565c0; }
+    .tag.responded { background: #e8f5e9; color: #2e7d32; }
+    .tag.no-response { background: #fce4ec; color: #c62828; }
+    .tag.expired { background: #f5f5f5; color: #757575; }
     .tag.completed { background: #f5f5f5; color: #757575; }
     pre {
       background: #f8f9fa;
@@ -139,6 +144,25 @@ export function layout(title: string, content: string): string {
     .error {
       color: #e74c3c;
       font-weight: 500;
+    }
+    .followup-card {
+      border-left: 4px solid #3498db;
+    }
+    .followup-details {
+      margin-top: 10px;
+    }
+    .followup-details p {
+      margin: 5px 0;
+    }
+    .followup-message {
+      margin: 10px 0;
+      padding: 10px;
+      background: #f8f9fa;
+      border-radius: 4px;
+    }
+    .followup-message .message {
+      max-width: 100%;
+      margin: 5px 0;
     }
   </style>
 </head>

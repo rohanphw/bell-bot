@@ -29,4 +29,9 @@ export interface PendingFollowup {
   triggerAt: Date;
   completed: boolean;
   createdAt: Date;
+  status: "pending" | "sent" | "responded" | "no_response" | "expired";
+  sentAt?: Date;
+  respondedAt?: Date;
+  checkinMessage?: string;
+  userResponse?: string;
 }

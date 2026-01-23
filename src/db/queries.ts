@@ -116,19 +116,13 @@ export async function addFollowup(
 export async function getDueFollowups(): Promise<PendingFollowupType[]> {
   const followups = await PendingFollowup.find({
     completed: false,
+    status: "pending",
     triggerAt: { $lte: new Date() },
   })
     .sort({ triggerAt: 1 })
     .lean();
 
-  return followups.map((f) => ({
-    id: f._id.toString(),
-    chatId: f.chatId,
-    topic: f.topic,
-    triggerAt: f.triggerAt,
-    completed: f.completed,
-    createdAt: f.createdAt,
-  }));
+  return followups.map((f) => mapFollowup(f));
 }
 
 export async function getPendingFollowups(
@@ -138,18 +132,75 @@ export async function getPendingFollowups(
     .sort({ triggerAt: 1 })
     .lean();
 
-  return followups.map((f) => ({
-    id: f._id.toString(),
-    chatId: f.chatId,
-    topic: f.topic,
-    triggerAt: f.triggerAt,
-    completed: f.completed,
-    createdAt: f.createdAt,
-  }));
+  return followups.map((f) => mapFollowup(f));
+}
+
+export async function getAllFollowups(
+  chatId: number,
+): Promise<PendingFollowupType[]> {
+  const followups = await PendingFollowup.find({ chatId })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  return followups.map((f) => mapFollowup(f));
+}
+
+export async function getSentFollowups(
+  chatId: number,
+): Promise<PendingFollowupType[]> {
+  const followups = await PendingFollowup.find({
+    chatId,
+    status: "sent",
+  })
+    .sort({ sentAt: -1 })
+    .lean();
+
+  return followups.map((f) => mapFollowup(f));
 }
 
 export async function markFollowupComplete(id: string): Promise<void> {
   await PendingFollowup.findByIdAndUpdate(id, { completed: true });
+}
+
+export async function updateFollowupSent(
+  id: string,
+  checkinMessage: string,
+): Promise<void> {
+  await PendingFollowup.findByIdAndUpdate(id, {
+    status: "sent",
+    sentAt: new Date(),
+    checkinMessage,
+  });
+}
+
+export async function updateFollowupResponse(
+  id: string,
+  userResponse: string,
+): Promise<void> {
+  await PendingFollowup.findByIdAndUpdate(id, {
+    status: "responded",
+    respondedAt: new Date(),
+    userResponse,
+    completed: true,
+  });
+}
+
+export async function expireOldFollowups(): Promise<number> {
+  const twoDaysAgo = new Date();
+  twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+
+  const result = await PendingFollowup.updateMany(
+    {
+      status: "sent",
+      sentAt: { $lte: twoDaysAgo },
+    },
+    {
+      status: "no_response",
+      completed: true,
+    },
+  );
+
+  return result.modifiedCount;
 }
 
 // Clear data
@@ -160,4 +211,21 @@ export async function clearChatData(chatId: number): Promise<void> {
     UserProfile.deleteOne({ chatId }),
     PendingFollowup.deleteMany({ chatId }),
   ]);
+}
+
+// Helper function to map followup documents
+function mapFollowup(f: any): PendingFollowupType {
+  return {
+    id: f._id.toString(),
+    chatId: f.chatId,
+    topic: f.topic,
+    triggerAt: f.triggerAt,
+    completed: f.completed,
+    createdAt: f.createdAt,
+    status: f.status || "pending",
+    sentAt: f.sentAt,
+    respondedAt: f.respondedAt,
+    checkinMessage: f.checkinMessage,
+    userResponse: f.userResponse,
+  };
 }
