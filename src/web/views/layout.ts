@@ -134,6 +134,12 @@ export function layout(title: string, content: string): string {
       background: #bdc3c7;
       cursor: not-allowed;
     }
+    button.danger {
+      background: #e74c3c;
+    }
+    button.danger:hover {
+      background: #c0392b;
+    }
     #action-result {
       margin-top: 10px;
     }
@@ -164,12 +170,69 @@ export function layout(title: string, content: string): string {
       max-width: 100%;
       margin: 5px 0;
     }
+    /* Logs styles */
+    .log-filters {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .log-filters select {
+      padding: 8px 12px;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+      font-size: 14px;
+    }
+    .logs-container {
+      max-height: 600px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 13px;
+    }
+    .log-entry {
+      padding: 8px 12px;
+      border-bottom: 1px solid #eee;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    .log-entry:hover {
+      background: #f8f9fa;
+    }
+    .log-time {
+      color: #7f8c8d;
+      min-width: 180px;
+    }
+    .log-level {
+      font-weight: bold;
+      min-width: 60px;
+    }
+    .log-category {
+      color: #8e44ad;
+      min-width: 100px;
+    }
+    .log-message {
+      flex: 1;
+    }
+    .log-data {
+      width: 100%;
+      margin: 5px 0 0 0;
+      font-size: 12px;
+      background: #f1f1f1;
+    }
+    .log-info .log-level { color: #3498db; }
+    .log-warn .log-level { color: #f39c12; }
+    .log-error .log-level { color: #e74c3c; }
+    .log-error { background: #fdf2f2; }
+    .log-debug .log-level { color: #95a5a6; }
   </style>
 </head>
 <body>
   <nav>
     <a href="/">📊 Dashboard</a>
     <a href="/chats">💬 Chats</a>
+    <a href="/logs">📜 Logs</a>
   </nav>
   ${content}
 </body>

@@ -3,6 +3,8 @@ import { Message, Summary, UserProfile, PendingFollowup } from "../../db";
 import { dashboardView } from "../views/dashboard";
 import { chatsListView } from "../views/chats";
 import { chatDetailView } from "../views/chatDetail";
+import { logsView } from "../views/logs";
+import { logger } from "../../services";
 
 const router = Router();
 
@@ -108,6 +110,13 @@ router.get("/chats/:id", async (req, res) => {
     profile,
   });
 
+  res.send(html);
+});
+
+// Logs page
+router.get("/logs", async (req, res) => {
+  const logs = logger.getLogs(200);
+  const html = logsView(logs);
   res.send(html);
 });
 

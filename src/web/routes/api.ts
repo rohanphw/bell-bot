@@ -239,4 +239,23 @@ router.post("/chats/:id/extract-followups", async (req, res) => {
   }
 });
 
+// Get logs
+router.get("/logs", async (req, res) => {
+  const { logger } = await import("../../services");
+
+  const limit = parseInt(req.query.limit as string, 10) || 100;
+  const level = req.query.level as string | undefined;
+  const category = req.query.category as string | undefined;
+
+  const logs = logger.getLogs(limit, level, category);
+  res.json(logs);
+});
+
+// Clear logs
+router.post("/logs/clear", async (req, res) => {
+  const { logger } = await import("../../services");
+  logger.clear();
+  res.json({ success: true });
+});
+
 export default router;

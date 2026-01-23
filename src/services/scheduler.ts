@@ -4,6 +4,7 @@ import { env } from "../config/env";
 import { summarizeDaily, summarizeWeekly, getAllChatIds } from "./summarize";
 import { sendCheckin } from "./checkin";
 import { expireOldFollowups } from "../db";
+import { logger } from "./logger";
 
 let botInstance: Bot | null = null;
 
@@ -13,88 +14,77 @@ export function startScheduler(bot: Bot): void {
   const cronOptions = { timezone: env.TIMEZONE };
 
   // Run daily summaries every night at midnight
-  cron.schedule(
-    "0 0 * * *",
-    async () => {
-      console.log("Running daily summarization...");
+  cron.schedule("0 0 * * *", async () => {
+    logger.info("scheduler", "Running daily summarization...");
 
-      const chatIds = await getAllChatIds();
+    const chatIds = await getAllChatIds();
 
-      for (const chatId of chatIds) {
-        try {
-          const summary = await summarizeDaily(chatId);
-          if (summary) {
-            console.log(`Daily summary created for chat ${chatId}`);
-          }
-        } catch (error) {
-          console.error(`Failed to summarize chat ${chatId}:`, error);
-        }
-      }
-
-      // Also expire old followups
+    for (const chatId of chatIds) {
       try {
-        const expired = await expireOldFollowups();
-        if (expired > 0) {
-          console.log(`Expired ${expired} old followups`);
+        const summary = await summarizeDaily(chatId);
+        if (summary) {
+          logger.info("scheduler", `Daily summary created for chat ${chatId}`);
         }
-      } catch (error) {
-        console.error("Failed to expire followups:", error);
+      } catch (error: any) {
+        logger.error("scheduler", `Failed to summarize chat ${chatId}`, error.message);
       }
-    },
-    cronOptions,
-  );
+    }
+
+    // Also expire old followups
+    try {
+      const expired = await expireOldFollowups();
+      if (expired > 0) {
+        logger.info("scheduler", `Expired ${expired} old followups`);
+      }
+    } catch (error: any) {
+      logger.error("scheduler", "Failed to expire followups", error.message);
+    }
+  }, cronOptions);
 
   // Run weekly summaries every Sunday at 1am
-  cron.schedule(
-    "0 1 * * 0",
-    async () => {
-      console.log("Running weekly summarization...");
+  cron.schedule("0 1 * * 0", async () => {
+    logger.info("scheduler", "Running weekly summarization...");
 
-      const chatIds = await getAllChatIds();
+    const chatIds = await getAllChatIds();
 
-      for (const chatId of chatIds) {
-        try {
-          const summary = await summarizeWeekly(chatId);
-          if (summary) {
-            console.log(`Weekly summary created for chat ${chatId}`);
-          }
-        } catch (error) {
-          console.error(`Failed weekly summary for chat ${chatId}:`, error);
+    for (const chatId of chatIds) {
+      try {
+        const summary = await summarizeWeekly(chatId);
+        if (summary) {
+          logger.info("scheduler", `Weekly summary created for chat ${chatId}`);
         }
+      } catch (error: any) {
+        logger.error("scheduler", `Failed weekly summary for chat ${chatId}`, error.message);
       }
-    },
-    cronOptions,
-  );
+    }
+  }, cronOptions);
 
   // Check-ins run three times daily: 9am, 2pm, 7pm
-  cron.schedule(
-    "0 9,14,19 * * *",
-    async () => {
-      if (!botInstance) return;
+  cron.schedule("0 9,14,19 * * *", async () => {
+    if (!botInstance) return;
 
-      console.log("Running check-ins...");
+    logger.info("scheduler", "Running check-ins...");
 
-      const chatIds = await getAllChatIds();
+    const chatIds = await getAllChatIds();
 
-      for (const chatId of chatIds) {
-        try {
-          const sent = await sendCheckin(botInstance, chatId);
-          if (sent) {
-            console.log(`Check-in sent to chat ${chatId}`);
-          }
-        } catch (error) {
-          console.error(`Failed check-in for chat ${chatId}:`, error);
+    for (const chatId of chatIds) {
+      try {
+        const sent = await sendCheckin(botInstance, chatId);
+        if (sent) {
+          logger.info("scheduler", `Check-in sent to chat ${chatId}`);
+        } else {
+          logger.debug("scheduler", `Check-in skipped for chat ${chatId}`);
         }
+      } catch (error: any) {
+        logger.error("scheduler", `Failed check-in for chat ${chatId}`, error.message);
       }
-    },
-    cronOptions,
-  );
+    }
+  }, cronOptions);
 
-  console.log(`Scheduler started (timezone: ${env.TIMEZONE}):`);
-  console.log("  - Daily summaries at midnight");
-  console.log("  - Weekly summaries on Sundays at 1am");
-  console.log("  - Check-ins at 9am, 2pm, 7pm");
-  console.log("  - Followup expiry at midnight");
+  logger.info("scheduler", `Scheduler started (timezone: ${env.TIMEZONE})`);
+  logger.info("scheduler", "Daily summaries at midnight");
+  logger.info("scheduler", "Weekly summaries on Sundays at 1am");
+  logger.info("scheduler", "Check-ins at 9am, 2pm, 7pm");
 }
 
 export function getBot(): Bot | null {
